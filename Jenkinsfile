@@ -142,42 +142,59 @@ pipeline {
             }
             steps {
                 sh '''
-                # Ensure all containers are running first
-                docker ps
+                # Create a script to run on the host
+                cat > run_comparison_on_host.sh << 'EOF'
+        #!/bin/bash
+        cd ~/Desktop/my-devops-project
+        echo "Running database comparison on host machine..."
+        ./scripts/run_db_comparison.sh
+        EOF
+
+                chmod +x run_comparison_on_host.sh
                 
-                # Activate virtual environment
-                . venv/bin/activate
+                # Save the current workspace path
+                WORKSPACE_PATH=$(pwd)
                 
-                # Install required packages
-                pip install psycopg2-binary pymongo elasticsearch matplotlib numpy
+                echo "Please run the database comparison on your host machine with the following command:"
+                echo "bash $WORKSPACE_PATH/run_comparison_on_host.sh"
+                echo "Then copy the results back to Jenkins with:"
+                echo "cp ~/Desktop/my-devops-project/performance_results.json $WORKSPACE_PATH/"
+                echo "cp -r ~/Desktop/my-devops-project/reports $WORKSPACE_PATH/"
                 
-                # Ensure directories exist with correct permissions
-                mkdir -p ./logs
-                mkdir -p ./reports
-                chmod 777 ./logs
-                chmod 777 ./reports
+                # For demonstration, create a simple placeholder report
+                mkdir -p reports
+                cat > reports/performance_report.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Database Comparison Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+                h1 { color: #2c3e50; }
+                .info { background-color: #f8f9fa; padding: 15px; border-radius: 5px; }
+            </style>
+        </head>
+        <body>
+            <h1>Database Comparison Report</h1>
+            <div class="info">
+                <p>This is a placeholder report. To see the actual database comparison:</p>
+                <ol>
+                    <li>Run the database comparison on your host machine</li>
+                    <li>Open the generated report at: ~/Desktop/my-devops-project/reports/performance_report.html</li>
+                </ol>
+                <p>The comparison will show performance metrics between PostgreSQL, MongoDB, and Elasticsearch for log storage and retrieval.</p>
+            </div>
+        </body>
+        </html>
+        EOF
                 
-                # Set a timeout for Elasticsearch
-                timeout 60s bash -c 'until curl -s http://localhost:9200 > /dev/null; do echo "Waiting for Elasticsearch..."; sleep 5; done' || echo "Elasticsearch timeout reached, but continuing anyway"
-                
-                # Setup databases
-                ./scripts/db_scripts/setup_postgres.sh || echo "PostgreSQL setup failed but continuing"
-                ./scripts/db_scripts/setup_mongodb.sh || echo "MongoDB setup failed but continuing"
-                ./scripts/db_scripts/setup_elasticsearch.sh || echo "Elasticsearch setup failed but continuing"
-                
-                # Generate test logs if needed
-                python ./scripts/generate_test_logs.py --count 1000 --output ./logs/test_logs.json
-                
-                # Run comparison
-                python ./scripts/import_logs.py --file ./logs/test_logs.json --queries 10 || echo "Import logs failed but continuing"
-                
-                # Create visualization
-                python ./scripts/visualize_results.py --results performance_results.json --output ./reports || echo "Visualization failed but continuing"
+                echo "Created placeholder report for demonstration."
+                echo "Run the actual comparison on your host machine for complete results."
                 '''
                 
                 // Archive results as artifacts
-                archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'run_comparison_on_host.sh', allowEmptyArchive: false
+                archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: false
             }
         }
     }
