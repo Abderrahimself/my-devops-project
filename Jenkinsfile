@@ -55,7 +55,31 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                docker-compose down || true
+                # Stop and remove existing containers with these names
+                docker stop elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
+                docker rm elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
+                
+                # Remove the network if it exists
+                docker network rm my-devops-project_app-network 2>/dev/null || true
+                
+                # Create a unique docker-compose override file with build-specific container names
+                cat > docker-compose.override.yml << EOF
+        version: '3.8'
+
+        services:
+          app:
+            container_name: devops-app-${BUILD_ID}
+          postgres:
+            container_name: postgres-db-${BUILD_ID}
+          mongodb:
+            container_name: mongodb-${BUILD_ID}
+          elasticsearch:
+            container_name: elasticsearch-${BUILD_ID}
+          kibana:
+            container_name: kibana-${BUILD_ID}
+        EOF
+                
+                # Start containers with the override
                 docker-compose up -d
                 '''
             }
@@ -101,8 +125,8 @@ pipeline {
                 mkdir -p jenkins_logs
                 
                 # Collect logs from the application
-                docker cp $(docker ps -q --filter "name=devops-app"):/app/logs/app.log jenkins_logs/ || echo "Log collection failed but continuing"
-                docker cp $(docker ps -q --filter "name=devops-app"):/app/logs/app.json jenkins_logs/ || echo "Log collection failed but continuing"
+                docker cp devops-app-${BUILD_ID}:/app/logs/app.log jenkins_logs/ || echo "Log collection failed but continuing"
+                docker cp devops-app-${BUILD_ID}:/app/logs/app.json jenkins_logs/ || echo "Log collection failed but continuing"
                 
                 echo "Logs collected!"
                 '''
