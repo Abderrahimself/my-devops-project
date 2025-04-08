@@ -464,11 +464,31 @@ pipeline {
                     docker stop devops-test-app 2>/dev/null || true
                     docker rm devops-test-app 2>/dev/null || true
                     
-                    # Run the app container directly for testing
-                    docker run -d --name devops-test-app -p 5000:5000 devops-task-app:${BUILD_ID}
+                    # Get the Jenkins container network ID
+                    JENKINS_NETWORK=$(docker inspect -f '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' $(hostname))
+                    echo "Jenkins is running on network: $JENKINS_NETWORK"
+                    
+                    # Run the app container directly for testing, connected to Jenkins network
+                    docker run -d --name devops-test-app --network $JENKINS_NETWORK -p 5000:5000 devops-task-app:${BUILD_ID}
                     
                     # Check if container is running
                     docker ps | grep devops-test-app
+                    
+                    # Display container logs
+                    echo "Container logs:"
+                    docker logs devops-test-app
+                    
+                    # Check network connectivity 
+                    echo "Network connectivity:"
+                    docker inspect -f '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}: {{.IPAddress}}{{end}}' devops-test-app
+                    
+                    # Check if app is listening on port 5000
+                    echo "Port mappings:"
+                    docker port devops-test-app
+                    
+                    # Give the app time to start
+                    echo "Waiting for app to initialize..."
+                    sleep 10
                 '''
             }
         }
