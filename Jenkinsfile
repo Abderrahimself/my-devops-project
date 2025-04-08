@@ -757,38 +757,33 @@ pipeline {
         stage('Integration Test') {
             steps {
                 sh '''
-                # Test connection to app (should already be running in docker-compose)
-                echo "Testing connection to app container..."
-                curl -s http://app:5000/health || echo "Health check via container name failed"
-                
-                # Try with localhost as fallback
-                curl -s http://localhost:5000/health || echo "Health check via localhost failed"
-                
-                # Try with direct container IP as second fallback
-                APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' devops-app)
-                if [ -n "$APP_IP" ]; then
-                    echo "Testing via container IP: $APP_IP"
-                    curl -s http://$APP_IP:5000/health || echo "Health check via IP failed"
-                fi
-                
-                # Create a test task
-                curl -s -X POST -H "Content-Type: application/json" \
-                    -d '{"title":"Test Task","description":"Created by Jenkins"}' \
-                    http://app:5000/api/tasks || echo "Task creation failed"
+                    # Test connection to app (successful approach)
+                    echo "Testing connection to app container..."
+                    HEALTH_CHECK=$(curl -s http://app:5000/health)
+                    echo "$HEALTH_CHECK"
+                    
+                    # Create a test task
+                    echo "Creating a test task..."
+                    curl -s -X POST -H "Content-Type: application/json" \\
+                        -d '{"title":"Test Task","description":"Created by Jenkins"}' \\
+                        http://app:5000/api/tasks
+                    
+                    echo "Integration tests completed successfully!"
                 '''
             }
         }
-        
+
         stage('Generate Test Logs') {
             steps {
                 sh '''
-                # Generate logs via the application
-                curl -s -X POST -H "Content-Type: application/json" \
-                    -d '{"count":100}' \
-                    http://app:5000/api/generate-logs || echo "Log generation failed"
-                
-                # Wait for logs to be generated
-                sleep 5
+                    echo "Generating test logs..."
+                    # Generate logs via the application
+                    curl -s -X POST -H "Content-Type: application/json" \\
+                        -d '{"count":100}' \\
+                        http://app:5000/api/generate-logs
+                    
+                    echo "Log generation complete!"
+                    sleep 5
                 '''
             }
         }
