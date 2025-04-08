@@ -1051,8 +1051,20 @@ EOF
         body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
         h1 { color: #2c3e50; }
         .success { color: green; }
+        .warning { color: orange; }
+        .danger { color: red; }
+        .improved { color: green; }
+        .unchanged { color: gray; }
+        .degraded { color: red; }
         .container { max-width: 800px; margin: 0 auto; }
         .info-box { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
+        .metric-card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; }
+        .metric-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+        .trend-up { color: green; }
+        .trend-down { color: red; }
+        .trend-neutral { color: gray; }
+        .arrow { font-size: 24px; }
     </style>
 </head>
 <body>
@@ -1078,10 +1090,48 @@ EOF
         </div>
         
         <div class="info-box">
+            <h2>Performance Metrics</h2>
+            <p>Key metrics from the last two weeks:</p>
+            
+            <div class="metric-grid">
+                <div class="metric-card">
+                    <div class="metric-title">Deployment Frequency</div>
+                    <div>Last week: 10</div>
+                    <div>This week: 12</div>
+                    <div class="trend-up arrow">↑</div>
+                    <div class="improved">20% improvement</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">Mean Time To Recovery</div>
+                    <div>Last week: 20 mins/issue</div>
+                    <div>This week: 18 mins/issue</div>
+                    <div class="trend-up arrow">↑</div>
+                    <div class="improved">10% improvement</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">% Failed Deployments</div>
+                    <div>Last week: 20%</div>
+                    <div>This week: 33.33%</div>
+                    <div class="trend-down arrow">↓</div>
+                    <div class="degraded">13.33% increase</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-box">
             <h2>Next Steps</h2>
             <p>The application is ready for further testing or use.</p>
             <p>Access the application at: <a href="http://localhost:5000">http://localhost:5000</a></p>
             <p>Access Kibana at: <a href="http://localhost:5601">http://localhost:5601</a></p>
+            
+            <h3>Recommendations Based on Metrics</h3>
+            <ul>
+                <li><strong>Investigate failed deployments:</strong> The significant increase in failed deployments (20% → 33.33%) requires attention.</li>
+                <li><strong>Continue improvements in recovery time:</strong> The team has made good progress reducing recovery time from 20 to 18 minutes per issue.</li>
+                <li><strong>Maintain deployment frequency:</strong> The increase in deployment frequency is positive (10 → 12) and should be maintained.</li>
+            </ul>
         </div>
     </div>
 </body>
