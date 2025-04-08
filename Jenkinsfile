@@ -435,6 +435,10 @@ pipeline {
                 
                 # Start containers with the override
                 docker-compose up -d
+                
+                # Debug - list running containers to verify they started
+                echo "Running containers after docker-compose:"
+                docker ps
                 '''
             }
         }
@@ -446,27 +450,40 @@ pipeline {
                 echo "Waiting for application to start..."
                 sleep 15
                 
-                # Find the container IP address
-                APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' devops-app-${BUILD_ID})
+                # Debug: List all running containers
+                echo "Current running containers:"
+                docker ps
                 
-                if [ -z "$APP_IP" ]; then
-                    echo "Couldn't find container IP, trying to use host IP..."
-                    # Try using localhost/host machine instead
-                    curl -s http://localhost:5000/health || echo "Health check failed but continuing"
+                # Try to identify any app container that's running
+                APP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'devops-app|app' | head -n 1)
+                
+                if [ -n "$APP_CONTAINER" ]; then
+                    echo "Found app container: $APP_CONTAINER"
+                    # Get IP for the found container
+                    APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $APP_CONTAINER)
                     
-                    # Create a task
+                    if [ -n "$APP_IP" ]; then
+                        echo "Using container IP: $APP_IP"
+                        # Use the container's IP address
+                        curl -s http://$APP_IP:5000/health || echo "Health check failed but continuing"
+                        curl -s -X POST -H "Content-Type: application/json" \\
+                            -d '{"title":"Test Task","description":"Created by Jenkins"}' \\
+                            http://$APP_IP:5000/api/tasks || echo "Task creation failed but continuing"
+                    else
+                        echo "Container found but no IP, using localhost..."
+                        # Fallback to localhost
+                        curl -s http://localhost:5000/health || echo "Health check failed but continuing"
+                        curl -s -X POST -H "Content-Type: application/json" \\
+                            -d '{"title":"Test Task","description":"Created by Jenkins"}' \\
+                            http://localhost:5000/api/tasks || echo "Task creation failed but continuing"
+                    fi
+                else
+                    echo "No app container found, using localhost..."
+                    # Last resort: use localhost
+                    curl -s http://localhost:5000/health || echo "Health check failed but continuing"
                     curl -s -X POST -H "Content-Type: application/json" \\
                         -d '{"title":"Test Task","description":"Created by Jenkins"}' \\
                         http://localhost:5000/api/tasks || echo "Task creation failed but continuing"
-                else
-                    echo "Found container IP: $APP_IP"
-                    # Use the container's IP address directly
-                    curl -s http://$APP_IP:5000/health || echo "Health check failed but continuing"
-                    
-                    # Create a task
-                    curl -s -X POST -H "Content-Type: application/json" \\
-                        -d '{"title":"Test Task","description":"Created by Jenkins"}' \\
-                        http://$APP_IP:5000/api/tasks || echo "Task creation failed but continuing"
                 fi
                 
                 echo "Integration tests completed!"
@@ -480,19 +497,29 @@ pipeline {
                 echo "Waiting for application to be fully initialized..."
                 sleep 5
                 
-                # Find the container IP address again (in case it changed)
-                APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' devops-app-${BUILD_ID})
+                # Find any running app container
+                APP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'devops-app|app' | head -n 1)
                 
-                if [ -z "$APP_IP" ]; then
-                    # Try using localhost/host machine instead
+                if [ -n "$APP_CONTAINER" ]; then
+                    echo "Found app container for log generation: $APP_CONTAINER"
+                    APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $APP_CONTAINER)
+                    
+                    if [ -n "$APP_IP" ]; then
+                        echo "Using container IP: $APP_IP"
+                        curl -s -X POST -H "Content-Type: application/json" \\
+                            -d '{"count":100}' \\
+                            http://$APP_IP:5000/api/generate-logs || echo "Log generation failed but continuing"
+                    else
+                        echo "No IP found for container, using localhost"
+                        curl -s -X POST -H "Content-Type: application/json" \\
+                            -d '{"count":100}' \\
+                            http://localhost:5000/api/generate-logs || echo "Log generation failed but continuing"
+                    fi
+                else
+                    echo "No app container found, using localhost"
                     curl -s -X POST -H "Content-Type: application/json" \\
                         -d '{"count":100}' \\
                         http://localhost:5000/api/generate-logs || echo "Log generation failed but continuing"
-                else
-                    # Use the container's IP address directly
-                    curl -s -X POST -H "Content-Type: application/json" \\
-                        -d '{"count":100}' \\
-                        http://$APP_IP:5000/api/generate-logs || echo "Log generation failed but continuing"
                 fi
                 
                 sleep 5
@@ -511,16 +538,15 @@ pipeline {
                 sh '''
                 mkdir -p jenkins_logs
                 
-                # Find the container with the exact dynamic name we created
-                APP_CONTAINER="devops-app-${BUILD_ID}"
+                # Find any running app container
+                APP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'devops-app|app' | head -n 1)
                 
-                # Check if the container exists
-                if docker ps -q -f "name=$APP_CONTAINER" | grep -q .; then
-                    echo "Found app container: $APP_CONTAINER"
+                if [ -n "$APP_CONTAINER" ]; then
+                    echo "Found app container for log collection: $APP_CONTAINER"
                     docker cp $APP_CONTAINER:/app/logs/app.log jenkins_logs/ || echo "Failed to copy app.log"
                     docker cp $APP_CONTAINER:/app/logs/app.json jenkins_logs/ || echo "Failed to copy app.json"
                 else
-                    echo "App container $APP_CONTAINER not found, using locally generated logs"
+                    echo "No app container found, using locally generated logs"
                     cp logs/app.log jenkins_logs/ || echo "No local app.log found"
                     cp logs/app.json jenkins_logs/ || echo "No local app.json found"
                     
