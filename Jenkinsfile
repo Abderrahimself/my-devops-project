@@ -409,36 +409,77 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                # Stop and remove existing containers with these names
-                docker stop elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
-                docker rm elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
-                
-                # Remove the network if it exists
-                docker network rm my-devops-project_app-network 2>/dev/null || true
-                
-                # Create a unique docker-compose override file with build-specific container names
-                cat > docker-compose.override.yml << EOF
-        version: '3.8'
+                    # Stop and remove existing containers
+                    docker stop elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
+                    docker rm elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
+                    
+                    # Remove the network if it exists
+                    docker network rm my-devops-project_app-network 2>/dev/null || true
+                    
+                    # Show docker-compose file
+                    echo "Current docker-compose.yml file:"
+                    cat docker-compose.yml
+                    
+                    # Create override file
+                    cat > docker-compose.override.yml << EOF
+            version: '3.8'
 
-        services:
-          app:
-            container_name: devops-app-${BUILD_ID}
-          postgres:
-            container_name: postgres-db-${BUILD_ID}
-          mongodb:
-            container_name: mongodb-${BUILD_ID}
-          elasticsearch:
-            container_name: elasticsearch-${BUILD_ID}
-          kibana:
-            container_name: kibana-${BUILD_ID}
-        EOF
-                
-                # Start containers with the override
-                docker-compose up -d
-                
-                # Debug - list running containers to verify they started
-                echo "Running containers after docker-compose:"
-                docker ps
+            services:
+              app:
+                container_name: devops-app-${BUILD_ID}
+              postgres:
+                container_name: postgres-db-${BUILD_ID}
+              mongodb:
+                container_name: mongodb-${BUILD_ID}
+              elasticsearch:
+                container_name: elasticsearch-${BUILD_ID}
+              kibana:
+                container_name: kibana-${BUILD_ID}
+            EOF
+                    
+                    echo "Created override file:"
+                    cat docker-compose.override.yml
+                    
+                    # Start containers with verbose output
+                    docker-compose --verbose up -d
+                    
+                    # Check docker-compose status
+                    docker-compose ps
+                    
+                    # Debug - list all networks
+                    echo "Docker networks:"
+                    docker network ls
+                    
+                    # Debug - list running containers
+                    echo "Running containers after docker-compose:"
+                    docker ps
+                '''
+            }
+        }
+
+        stage('Deploy for Testing') {
+            steps {
+                sh '''
+                    # Stop and remove any existing app container
+                    docker stop devops-test-app 2>/dev/null || true
+                    docker rm devops-test-app 2>/dev/null || true
+                    
+                    # Run the app container directly for testing
+                    docker run -d --name devops-test-app -p 5000:5000 devops-task-app:${BUILD_ID}
+                    
+                    # Check if container is running
+                    docker ps | grep devops-test-app
+                '''
+            }
+        }
+
+        stage('Check Docker Access') {
+            steps {
+                sh '''
+                    # Check Docker socket access
+                    ls -la /var/run/docker.sock
+                    id
+                    docker info
                 '''
             }
         }
