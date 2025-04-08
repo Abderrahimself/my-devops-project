@@ -52,47 +52,34 @@ pipeline {
             }
         }
         
-        // stage('Deploy') {
-        //     steps {
-        //         sh '''
-        //         # Stop and remove existing containers with these names
-        //         docker stop elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
-        //         docker rm elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
-                
-        //         # Remove the network if it exists
-        //         docker network rm my-devops-project_app-network 2>/dev/null || true
-                
-        //         # Create a unique docker-compose override file with build-specific container names
-        //         cat > docker-compose.override.yml << EOF
-        // version: '3.8'
-
-        // services:
-        //   app:
-        //     container_name: devops-app-${BUILD_ID}
-        //   postgres:
-        //     container_name: postgres-db-${BUILD_ID}
-        //   mongodb:
-        //     container_name: mongodb-${BUILD_ID}
-        //   elasticsearch:
-        //     container_name: elasticsearch-${BUILD_ID}
-        //   kibana:
-        //     container_name: kibana-${BUILD_ID}
-        // EOF
-                
-        //         # Start containers with the override
-        //         docker-compose up -d
-        //         '''
-        //     }
-        // }
-
         stage('Deploy') {
             steps {
                 sh '''
-                # Use the correct Docker host
-                export DOCKER_HOST=unix:///var/run/docker.sock
+                # Stop and remove existing containers with these names
+                docker stop elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
+                docker rm elasticsearch mongodb postgres-db devops-app kibana 2>/dev/null || true
                 
-                # Now you can interact with the host's Docker
-                docker-compose down || true
+                # Remove the network if it exists
+                docker network rm my-devops-project_app-network 2>/dev/null || true
+                
+                # Create a unique docker-compose override file with build-specific container names
+                cat > docker-compose.override.yml << EOF
+        version: '3.8'
+
+        services:
+          app:
+            container_name: devops-app-${BUILD_ID}
+          postgres:
+            container_name: postgres-db-${BUILD_ID}
+          mongodb:
+            container_name: mongodb-${BUILD_ID}
+          elasticsearch:
+            container_name: elasticsearch-${BUILD_ID}
+          kibana:
+            container_name: kibana-${BUILD_ID}
+        EOF
+                
+                # Start containers with the override
                 docker-compose up -d
                 '''
             }
@@ -131,40 +118,26 @@ pipeline {
         //     }
         // }
 
-        // stage('Generate Test Logs') {
-        //     steps {
-        //         sh '''
-        //         # Wait longer for application to be ready
-        //         echo "Waiting for application to be fully initialized..."
-        //         sleep 15
-                
-        //         # Generate logs via the application with proper JSON format
-        //         curl -s -X POST -H "Content-Type: application/json" \
-        //             -d '{"count":100}' \
-        //             http://localhost:5000/api/generate-logs || echo "Log generation failed but continuing"
-                
-        //         # Wait for logs to be generated
-        //         sleep 5
-                
-        //         # Create some logs manually as backup
-        //         mkdir -p logs
-        //         echo "$(date) - Manual test log entry 1" >> logs/app.log
-        //         echo "$(date) - Manual test log entry 2" >> logs/app.log
-        //         echo '{"timestamp":"'"$(date -Iseconds)"'","level":"INFO","message":"Manual JSON log entry"}' >> logs/app.json
-        //         '''
-        //     }
-        // }
-
         stage('Generate Test Logs') {
             steps {
                 sh '''
-                # Wait for app to initialize
+                # Wait longer for application to be ready
+                echo "Waiting for application to be fully initialized..."
                 sleep 15
                 
-                # Use host.docker.internal instead of localhost
+                # Generate logs via the application with proper JSON format
                 curl -s -X POST -H "Content-Type: application/json" \
                     -d '{"count":100}' \
-                    http://host.docker.internal:5000/api/generate-logs || echo "Log generation failed but continuing"
+                    http://localhost:5000/api/generate-logs || echo "Log generation failed but continuing"
+                
+                # Wait for logs to be generated
+                sleep 5
+                
+                # Create some logs manually as backup
+                mkdir -p logs
+                echo "$(date) - Manual test log entry 1" >> logs/app.log
+                echo "$(date) - Manual test log entry 2" >> logs/app.log
+                echo '{"timestamp":"'"$(date -Iseconds)"'","level":"INFO","message":"Manual JSON log entry"}' >> logs/app.json
                 '''
             }
         }
