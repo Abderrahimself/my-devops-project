@@ -16,6 +16,10 @@ pipeline {
         stage('Setup Python Environment') {
             steps {
                 sh '''
+                # Install system dependencies
+                apt-get update || true
+                apt-get install -y libpq-dev postgresql-client || true
+                
                 # Create virtual environment if it doesn't exist
                 if [ ! -d "venv" ]; then
                     python3 -m venv venv
@@ -24,7 +28,9 @@ pipeline {
                 # Activate virtual environment and install dependencies
                 . venv/bin/activate
                 pip install --upgrade pip
-                pip install -r requirements.txt
+                
+                # Try with binary packages first
+                pip install --only-binary=:all: -r requirements.txt || pip install -r requirements.txt
                 '''
             }
         }
