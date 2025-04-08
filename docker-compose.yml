@@ -3,6 +3,7 @@ version: '3.8'
 services:
   app:
     build: .
+    container_name: devops-app
     ports:
       - "5000:5000"
     volumes:
@@ -11,13 +12,20 @@ services:
     environment:
       - FLASK_ENV=development
       - LOG_LEVEL=INFO
+      - DB_HOST=postgres
+      - DB_NAME=taskdb
+      - DB_USER=devops
+      - DB_PASSWORD=devops_password
     networks:
       - app-network
     depends_on:
       - postgres
+      - mongodb
+      - elasticsearch
 
   postgres:
     image: postgres:13
+    container_name: postgres-db
     environment:
       - POSTGRES_USER=devops
       - POSTGRES_PASSWORD=devops_password
@@ -29,9 +37,56 @@ services:
     networks:
       - app-network
 
+  mongodb:
+    image: mongo:5.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=devops
+      - MONGO_INITDB_ROOT_PASSWORD=devops_password
+      - MONGO_INITDB_DATABASE=logs
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - app-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - app-network
+    depends_on:
+      - elasticsearch
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   postgres-data:
+  mongodb-data:
+  elasticsearch-data:

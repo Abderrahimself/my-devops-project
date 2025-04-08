@@ -297,6 +297,25 @@ def generate_logs():
             logger.error(f"Test log entry #{i+1}: This is an error log message for testing")
     
     return jsonify({"message": f"Generated {count} log entries"}), 201
+    
+@app.route('/api/db-comparison', methods=['GET'])
+def db_comparison():
+    """Return a simple page with links to database comparison results"""
+    try:
+        # Check if reports exist
+        report_html_path = os.path.abspath(os.path.join(os.path.dirname(_file_), '..', 'reports', 'performance_report.html'))
+        if os.path.exists(report_html_path):
+            with open(report_html_path, 'r') as f:
+                report_html = f.read()
+            return report_html
+        else:
+            return jsonify({
+                "message": "No comparison reports available yet. Run the database comparison script first.",
+                "run_command": "./scripts/run_db_comparison.sh"
+            })
+    except Exception as e:
+        logger.error(f"Error retrieving db comparison: {str(e)}")
+        return jsonify({"error": f"Failed to retrieve comparison results: {str(e)}"}), 500
 
 if _name_ == '_main_':
     # Create logs directory if it doesn't exist

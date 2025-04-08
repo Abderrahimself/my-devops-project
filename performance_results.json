@@ -1,0 +1,69 @@
+{
+  "import_performance": [
+    {
+      "database": "PostgreSQL",
+      "total_records": 10000,
+      "duration_seconds": 3.4045324325561523,
+      "records_per_second": 2937.260900902011
+    },
+    {
+      "database": "MongoDB",
+      "total_records": 10000,
+      "duration_seconds": 0.3044779300689697,
+      "records_per_second": 32843.102939299475
+    },
+    {
+      "database": "Elasticsearch",
+      "total_records": 10000,
+      "duration_seconds": 1.3752658367156982,
+      "records_per_second": 7271.321466023772
+    }
+  ],
+  "query_performance": [
+    {
+      "database": "PostgreSQL",
+      "query_type": "level_filter",
+      "avg_duration_seconds": 0.0010248303413391113
+    },
+    {
+      "database": "PostgreSQL",
+      "query_type": "time_range",
+      "avg_duration_seconds": 0.0015523314476013183
+    },
+    {
+      "database": "PostgreSQL",
+      "query_type": "complex_query",
+      "avg_duration_seconds": 0.0010081052780151368
+    },
+    {
+      "database": "MongoDB",
+      "query_type": "level_filter",
+      "avg_duration_seconds": 0.0049874186515808105
+    },
+    {
+      "database": "MongoDB",
+      "query_type": "time_range",
+      "avg_duration_seconds": 0.0044384002685546875
+    },
+    {
+      "database": "MongoDB",
+      "query_type": "complex_query",
+      "avg_duration_seconds": 0.004769814014434814
+    },
+    {
+      "database": "Elasticsearch",
+      "query_type": "level_filter",
+      "avg_duration_seconds": 0.004194509983062744
+    },
+    {
+      "database": "Elasticsearch",
+      "query_type": "time_range",
+      "avg_duration_seconds": 0.0032073020935058593
+    },
+    {
+      "database": "Elasticsearch",
+      "query_type": "complex_query",
+      "avg_duration_seconds": 0.003217828273773193
+    }
+  ]
+}
