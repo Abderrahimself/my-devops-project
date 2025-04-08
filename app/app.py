@@ -16,7 +16,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger(_name_)
+logger = logging.getLogger(__name__)
 
 # Custom JSON formatter for logs
 class JsonFormatter(logging.Formatter):
@@ -44,7 +44,7 @@ json_handler = logging.FileHandler("logs/app.json")
 json_handler.setFormatter(JsonFormatter())
 logger.addHandler(json_handler)
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # Database connection function
 def get_db_connection():
@@ -297,7 +297,7 @@ def generate_logs():
             logger.error(f"Test log entry #{i+1}: This is an error log message for testing")
     
     return jsonify({"message": f"Generated {count} log entries"}), 201
-    
+
 @app.route('/api/db-comparison', methods=['GET'])
 def db_comparison():
     """Return a simple page with links to database comparison results"""
@@ -317,7 +317,7 @@ def db_comparison():
         logger.error(f"Error retrieving db comparison: {str(e)}")
         return jsonify({"error": f"Failed to retrieve comparison results: {str(e)}"}), 500
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     # Create logs directory if it doesn't exist
     os.makedirs("logs", exist_ok=True)
     
