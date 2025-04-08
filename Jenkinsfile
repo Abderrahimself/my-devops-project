@@ -62,25 +62,68 @@ pipeline {
                 # Remove the network if it exists
                 docker network rm my-devops-project_app-network 2>/dev/null || true
                 
-                # Create a unique docker-compose override file with build-specific container names
+                # Make sure ports are free
+                echo "Checking if ports are in use..."
+                if lsof -i:5000 > /dev/null; then
+                    echo "Warning: Port 5000 is already in use"
+                fi
+                if lsof -i:5601 > /dev/null; then
+                    echo "Warning: Port 5601 is already in use"
+                fi
+                if lsof -i:9200 > /dev/null; then
+                    echo "Warning: Port 9200 is already in use"
+                fi
+                
+                # Create a docker-compose override file with explicit port mappings
                 cat > docker-compose.override.yml << EOF
         version: '3.8'
 
         services:
           app:
-            container_name: devops-app-${BUILD_ID}
-          postgres:
-            container_name: postgres-db-${BUILD_ID}
-          mongodb:
-            container_name: mongodb-${BUILD_ID}
+            ports:
+              - "5000:5000"
+            restart: always
+            
           elasticsearch:
-            container_name: elasticsearch-${BUILD_ID}
+            ports:
+              - "9200:9200"
+            restart: always
+            
           kibana:
-            container_name: kibana-${BUILD_ID}
+            ports:
+              - "5601:5601"
+            restart: always
         EOF
                 
                 # Start containers with the override
                 docker-compose up -d
+                
+                # List all running containers to verify
+                echo "Listing all running containers:"
+                docker-compose ps
+                docker ps
+                
+                # Wait for services to be available
+                echo "Waiting for services to start up..."
+                for i in {1..30}; do
+                    echo "Attempt $i: Checking if app is available..."
+                    if curl -s http://localhost:5000/health > /dev/null; then
+                        echo "✓ Application is up and running!"
+                        break
+                    fi
+                    sleep 5
+                    if [ $i -eq 30 ]; then
+                        echo "Warning: Application didn't respond within the timeout."
+                    fi
+                done
+                
+                # Print access information
+                echo ""
+                echo "=== ACCESS INFORMATION ==="
+                echo "Application:     http://localhost:5000"
+                echo "Kibana:          http://localhost:5601"
+                echo "Elasticsearch:   http://localhost:9200"
+                echo "=========================="
                 '''
             }
         }
@@ -101,6 +144,102 @@ pipeline {
                 
                 echo "Integration tests completed!"
                 '''
+            }
+        }
+
+        stage('Verify Services') {
+            steps {
+                sh '''
+                # Create a verification script to check service availability
+                cat > verify_services.sh << 'EOF'
+        #!/bin/bash
+        echo "Verifying service availability..."
+
+        # Check app
+        if curl -s http://localhost:5000/health > /dev/null; then
+            echo "✓ Application is accessible at http://localhost:5000"
+        else
+            echo "✗ Application is NOT accessible at http://localhost:5000"
+        fi
+
+        # Check Elasticsearch
+        if curl -s http://localhost:9200 > /dev/null; then
+            echo "✓ Elasticsearch is accessible at http://localhost:9200"
+        else
+            echo "✗ Elasticsearch is NOT accessible at http://localhost:9200"
+        fi
+
+        # Check Kibana
+        if curl -s http://localhost:5601 > /dev/null; then
+            echo "✓ Kibana is accessible at http://localhost:5601"
+        else
+            echo "✗ Kibana is NOT accessible at http://localhost:5601"
+        fi
+
+        # Try alternative access through 127.0.0.1
+        if ! curl -s http://localhost:5000/health > /dev/null; then
+            if curl -s http://127.0.0.1:5000/health > /dev/null; then
+                echo "ℹ️ Application is accessible via http://127.0.0.1:5000 but not localhost"
+                echo "  Try using 127.0.0.1 instead of localhost in your browser"
+            fi
+        fi
+        EOF
+
+                chmod +x verify_services.sh
+                ./verify_services.sh
+                
+                # Create an HTML access guide
+                cat > access_guide.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Service Access Guide</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
+                h1 { color: #2c3e50; }
+                .card { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                .url { font-family: monospace; background-color: #e9ecef; padding: 5px; border-radius: 3px; }
+                .note { font-style: italic; color: #6c757d; }
+            </style>
+        </head>
+        <body>
+            <h1>Service Access Guide</h1>
+            
+            <div class="card">
+                <h2>Task Management Application</h2>
+                <p>URL: <span class="url">http://localhost:5000</span></p>
+                <p>API Endpoints:</p>
+                <ul>
+                    <li><span class="url">GET /health</span> - Health check</li>
+                    <li><span class="url">GET /api/tasks</span> - Get all tasks</li>
+                    <li><span class="url">POST /api/tasks</span> - Create a new task</li>
+                    <li><span class="url">GET /api/tasks/{id}</span> - Get a specific task</li>
+                    <li><span class="url">PUT /api/tasks/{id}</span> - Update a task</li>
+                    <li><span class="url">DELETE /api/tasks/{id}</span> - Delete a task</li>
+                </ul>
+                <p class="note">If localhost doesn't work, try using 127.0.0.1 instead: <span class="url">http://127.0.0.1:5000</span></p>
+            </div>
+            
+            <div class="card">
+                <h2>Kibana (Elasticsearch UI)</h2>
+                <p>URL: <span class="url">http://localhost:5601</span></p>
+                <p>Use Kibana to explore and visualize logs stored in Elasticsearch.</p>
+                <p class="note">If localhost doesn't work, try using 127.0.0.1 instead: <span class="url">http://127.0.0.1:5601</span></p>
+            </div>
+            
+            <div class="card">
+                <h2>Elasticsearch</h2>
+                <p>URL: <span class="url">http://localhost:9200</span></p>
+                <p>Direct access to the Elasticsearch API.</p>
+                <p class="note">If localhost doesn't work, try using 127.0.0.1 instead: <span class="url">http://127.0.0.1:9200</span></p>
+            </div>
+        </body>
+        </html>
+        EOF
+                '''
+                
+                // Archive access guide as artifact
+                archiveArtifacts artifacts: 'access_guide.html', allowEmptyArchive: false
             }
         }
         
