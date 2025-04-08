@@ -62,68 +62,25 @@ pipeline {
                 # Remove the network if it exists
                 docker network rm my-devops-project_app-network 2>/dev/null || true
                 
-                # Make sure ports are free
-                echo "Checking if ports are in use..."
-                if lsof -i:5000 > /dev/null; then
-                    echo "Warning: Port 5000 is already in use"
-                fi
-                if lsof -i:5601 > /dev/null; then
-                    echo "Warning: Port 5601 is already in use"
-                fi
-                if lsof -i:9200 > /dev/null; then
-                    echo "Warning: Port 9200 is already in use"
-                fi
-                
-                # Create a docker-compose override file with explicit port mappings
+                # Create a unique docker-compose override file with build-specific container names
                 cat > docker-compose.override.yml << EOF
         version: '3.8'
 
         services:
           app:
-            ports:
-              - "5000:5000"
-            restart: always
-            
+            container_name: devops-app-${BUILD_ID}
+          postgres:
+            container_name: postgres-db-${BUILD_ID}
+          mongodb:
+            container_name: mongodb-${BUILD_ID}
           elasticsearch:
-            ports:
-              - "9200:9200"
-            restart: always
-            
+            container_name: elasticsearch-${BUILD_ID}
           kibana:
-            ports:
-              - "5601:5601"
-            restart: always
+            container_name: kibana-${BUILD_ID}
         EOF
                 
                 # Start containers with the override
                 docker-compose up -d
-                
-                # List all running containers to verify
-                echo "Listing all running containers:"
-                docker-compose ps
-                docker ps
-                
-                # Wait for services to be available
-                echo "Waiting for services to start up..."
-                for i in {1..30}; do
-                    echo "Attempt $i: Checking if app is available..."
-                    if curl -s http://localhost:5000/health > /dev/null; then
-                        echo "✓ Application is up and running!"
-                        break
-                    fi
-                    sleep 5
-                    if [ $i -eq 30 ]; then
-                        echo "Warning: Application didn't respond within the timeout."
-                    fi
-                done
-                
-                # Print access information
-                echo ""
-                echo "=== ACCESS INFORMATION ==="
-                echo "Application:     http://localhost:5000"
-                echo "Kibana:          http://localhost:5601"
-                echo "Elasticsearch:   http://localhost:9200"
-                echo "=========================="
                 '''
             }
         }
@@ -146,8 +103,6 @@ pipeline {
                 '''
             }
         }
-
-        
         
         stage('Generate Test Logs') {
             steps {
