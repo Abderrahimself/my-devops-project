@@ -165,25 +165,14 @@ def create_html_report(results, output_dir):
     
     query_rows = ""
     for query_type, data in query_data.items():
-        # query_rows += f"""
-        # <tr>
-        #     <td>{query_type}</td>
-        #     <td>{data.get('PostgreSQL', 'N/A'):.6f}</td>
-        #     <td>{data.get('MongoDB', 'N/A'):.6f}</td>
-        #     <td>{data.get('Elasticsearch', 'N/A'):.6f}</td>
-        # </tr>
-        # """
-
-        
-        query_rows += """
+        query_rows += f"""
         <tr>
-            <td>{}</td>
-            <td>{}</td>
-            <td>{}</td>
-            <td>{}</td>
+            <td>{query_type}</td>
+            <td>{data.get('PostgreSQL', 'N/A'):.6f}</td>
+            <td>{data.get('MongoDB', 'N/A'):.6f}</td>
+            <td>{data.get('Elasticsearch', 'N/A'):.6f}</td>
         </tr>
-        """.format(query_type, pg_times.get(query_type, 'N/A'), mongo_times.get(query_type, 'N/A'), es_times.get(query_type, 'N/A'))
-
+        """
     
     # Create HTML content
     html_content = f"""
