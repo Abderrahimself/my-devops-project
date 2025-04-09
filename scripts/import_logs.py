@@ -27,8 +27,15 @@ def read_log_file(file_path):
 def import_to_postgres(records, batch_size=100):
     """Import log records to PostgreSQL"""
     try:
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="taskdb",
+        #     user="devops",
+        #     password="devops_password"
+        # )
+
         conn = psycopg2.connect(
-            host="localhost",
+            host="postgres-db",  # Use the service name from docker-compose
             database="taskdb",
             user="devops",
             password="devops_password"
@@ -87,8 +94,12 @@ def import_to_postgres(records, batch_size=100):
 def import_to_mongodb(records, batch_size=100):
     """Import log records to MongoDB"""
     try:
+        # client = pymongo.MongoClient(
+        #     "mongodb://devops:devops_password@localhost:27017/admin"
+        # )
+
         client = pymongo.MongoClient(
-            "mongodb://devops:devops_password@localhost:27017/admin"
+            "mongodb://devops:devops_password@mongodb:27017/admin"  # Use the service name
         )
         db = client.logs
         collection = db.app_logs
@@ -127,8 +138,8 @@ def import_to_elasticsearch(records, batch_size=100):
         
         # Connect to Elasticsearch
         print("Connecting to Elasticsearch...")
-        es = Elasticsearch(["http://localhost:9200"])
-        
+        # es = Elasticsearch(["http://localhost:9200"])
+        es = Elasticsearch(["http://elasticsearch:9200"])  # Use the service name        
         # Check connection
         if not es.ping():
             print("Cannot connect to Elasticsearch! Please check if it's running.")
