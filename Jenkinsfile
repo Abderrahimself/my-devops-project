@@ -359,34 +359,66 @@ pipeline {
 //             }
 //         }
 
+        // stage('Database Comparison') {
+        //     when {
+        //         expression { params.RUN_DB_COMPARISON == true }
+        //     }
+        //     steps {
+        //         sh '''
+        //             # Install required packages
+        //             . venv/bin/activate
+        //             pip install psycopg2-binary pymongo elasticsearch matplotlib numpy
+                    
+        //             # Ensure logs and reports directories exist
+        //             mkdir -p logs reports
+        //             chmod 777 logs reports
+                    
+        //             # Generate test data
+        //             python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
+                    
+        //             # Run database comparison
+        //             python scripts/import_logs.py --file logs/test_logs.json --queries 10
+                    
+        //             # Create visualization
+        //             python scripts/visualize_results.py --results performance_results.json --output reports
+                    
+        //             echo "Database comparison completed!"
+        //             echo "Check reports directory for visualization and results."
+        //         '''
+                
+        //         // Archive results as artifacts
+        //         archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
+        //         archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        //     }
+        // }
+
         stage('Database Comparison') {
-            when {
-                expression { params.RUN_DB_COMPARISON == true }
-            }
             steps {
                 sh '''
-                    # Install required packages
+                    # Activate virtual environment
                     . venv/bin/activate
-                    pip install psycopg2-binary pymongo elasticsearch matplotlib numpy
                     
-                    # Ensure logs and reports directories exist
+                    # Uninstall current psycopg2 and install with correct dependencies
+                    pip uninstall -y psycopg2-binary
+                    pip install --no-binary :all: psycopg2-binary
+                    
+                    # Ensure directories exist
                     mkdir -p logs reports
                     chmod 777 logs reports
                     
-                    # Generate test data
+                    # Generate test logs
                     python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
                     
-                    # Run database comparison
+                    # Run the database comparison
                     python scripts/import_logs.py --file logs/test_logs.json --queries 10
                     
-                    # Create visualization
+                    # Generate visualization
                     python scripts/visualize_results.py --results performance_results.json --output reports
                     
                     echo "Database comparison completed!"
-                    echo "Check reports directory for visualization and results."
                 '''
                 
-                // Archive results as artifacts
+                // Archive the results
                 archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
                 archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
             }
