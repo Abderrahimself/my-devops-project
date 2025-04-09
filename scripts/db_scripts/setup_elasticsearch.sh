@@ -73,7 +73,7 @@ ATTEMPT=1
 
 while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
     echo "Waiting for Elasticsearch to be ready... (Attempt $ATTEMPT/$MAX_ATTEMPTS)"
-    if curl -s http://localhost:9200 > /dev/null; then
+    if curl -s http://elasticsearch:9200 > /dev/null; then
         echo "Elasticsearch is ready!"
         break
     fi
@@ -88,7 +88,7 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
 done
 
 # Create logs index in Elasticsearch
-curl -X PUT "localhost:9200/logs" -H 'Content-Type: application/json' -d'
+curl -X PUT "elasticsearch:9200/logs" -H 'Content-Type: application/json' -d'
 {
   "settings": {
     "number_of_shards": 1,
@@ -130,7 +130,7 @@ curl -X PUT "localhost:9200/logs" -H 'Content-Type: application/json' -d'
 
 # Create a Kibana index pattern
 sleep 5  # Wait for index to be ready
-curl -X POST "localhost:5601/api/saved_objects/index-pattern/logs" -H 'kbn-xsrf: true' -H 'Content-Type: application/json' -d'
+curl -X POST "kibana:5601/api/saved_objects/index-pattern/logs" -H 'kbn-xsrf: true' -H 'Content-Type: application/json' -d'
 {
   "attributes": {
     "title": "logs*",
