@@ -392,15 +392,51 @@ pipeline {
         //     }
         // }
 
+        // stage('Database Comparison') {
+        //     steps {
+        //         sh '''
+        //             # Activate virtual environment
+        //             . venv/bin/activate
+                    
+        //             # Uninstall current psycopg2 and install with correct dependencies
+        //             pip uninstall -y psycopg2-binary
+        //             pip install --no-binary :all: psycopg2-binary
+                    
+        //             # Ensure directories exist
+        //             mkdir -p logs reports
+        //             chmod 777 logs reports
+                    
+        //             # Generate test logs
+        //             python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
+                    
+        //             # Run the database comparison
+        //             python scripts/import_logs.py --file logs/test_logs.json --queries 10
+                    
+        //             # Generate visualization
+        //             python scripts/visualize_results.py --results performance_results.json --output reports
+                    
+        //             echo "Database comparison completed!"
+        //         '''
+                
+        //         // Archive the results
+        //         archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
+        //         archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        //     }
+        // }
+
+
         stage('Database Comparison') {
             steps {
                 sh '''
                     # Activate virtual environment
                     . venv/bin/activate
                     
-                    # Uninstall current psycopg2 and install with correct dependencies
+                    # Uninstall current psycopg2 and install required dependencies
                     pip uninstall -y psycopg2-binary
                     pip install --no-binary :all: psycopg2-binary
+                    
+                    # Install MongoDB and Elasticsearch clients
+                    pip install pymongo elasticsearch matplotlib numpy
                     
                     # Ensure directories exist
                     mkdir -p logs reports
