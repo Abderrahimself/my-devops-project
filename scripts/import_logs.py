@@ -133,78 +133,173 @@ def import_to_mongodb(records, batch_size=100):
 
 def import_to_elasticsearch(records, batch_size=100):
     """Import log records to Elasticsearch"""
-    try:
-        from elasticsearch import Elasticsearch
+    # try:
+    #     from elasticsearch import Elasticsearch
         
-        # Connect to Elasticsearch
-        print("Connecting to Elasticsearch...")
-        # es = Elasticsearch(["http://localhost:9200"])
-        es = Elasticsearch(["http://elasticsearch:9200"])  # Use the service name        
-        # Check connection
-        if not es.ping():
-            print("Cannot connect to Elasticsearch! Please check if it's running.")
-            return {
-                "database": "Elasticsearch",
-                "error": "Failed to connect to Elasticsearch"
-            }
+    #     # Connect to Elasticsearch
+    #     print("Connecting to Elasticsearch...")
+    #     # es = Elasticsearch(["http://localhost:9200"])
+    #     es = Elasticsearch(["http://elasticsearch:9200"])  # Use the service name        
+    #     # Check connection
+    #     if not es.ping():
+    #         print("Cannot connect to Elasticsearch! Please check if it's running.")
+    #         return {
+    #             "database": "Elasticsearch",
+    #             "error": "Failed to connect to Elasticsearch"
+    #         }
         
-        print(f"Elasticsearch connection successful")
+    #     print(f"Elasticsearch connection successful")
         
-        start_time = time.time()
-        total_records = len(records)
-        imported = 0
+    #     start_time = time.time()
+    #     total_records = len(records)
+    #     imported = 0
         
-        # Bulk insert
-        for i in range(0, total_records, batch_size):
-            batch = records[i:i+batch_size]
-            bulk_data = []
+    #     # Bulk insert
+    #     for i in range(0, total_records, batch_size):
+    #         batch = records[i:i+batch_size]
+    #         bulk_data = []
             
-            for record in batch:
-                # Clean any problematic fields for ES
-                clean_record = record.copy()
-                # Ensure timestamp is in proper format
-                if 'timestamp' in clean_record:
-                    try:
-                        datetime.fromisoformat(clean_record['timestamp'])
-                    except ValueError:
-                        clean_record['timestamp'] = datetime.now().isoformat()
+    #         for record in batch:
+    #             # Clean any problematic fields for ES
+    #             clean_record = record.copy()
+    #             # Ensure timestamp is in proper format
+    #             if 'timestamp' in clean_record:
+    #                 try:
+    #                     datetime.fromisoformat(clean_record['timestamp'])
+    #                 except ValueError:
+    #                     clean_record['timestamp'] = datetime.now().isoformat()
                 
-                # Add index action
-                bulk_data.append({"index": {"_index": "logs"}})
-                bulk_data.append(clean_record)
+    #             # Add index action
+    #             bulk_data.append({"index": {"_index": "logs"}})
+    #             bulk_data.append(clean_record)
             
-            if bulk_data:
-                try:
-                    response = es.bulk(body=bulk_data)
-                    if response.get('errors'):
-                        print(f"Some errors occurred in bulk insert")
-                except Exception as e:
-                    print(f"Error in bulk insert: {str(e)}")
-                    # Try individual inserts
-                    for j in range(0, len(batch)):
-                        try:
-                            es.index(index="logs", body=batch[j])
-                        except Exception as inner_e:
-                            print(f"Error indexing single record: {str(inner_e)}")
+    #         if bulk_data:
+    #             try:
+    #                 response = es.bulk(body=bulk_data)
+    #                 if response.get('errors'):
+    #                     print(f"Some errors occurred in bulk insert")
+    #             except Exception as e:
+    #                 print(f"Error in bulk insert: {str(e)}")
+    #                 # Try individual inserts
+    #                 for j in range(0, len(batch)):
+    #                     try:
+    #                         es.index(index="logs", body=batch[j])
+    #                     except Exception as inner_e:
+    #                         print(f"Error indexing single record: {str(inner_e)}")
             
-            imported += len(batch)
-            print(f"Elasticsearch: Imported {imported}/{total_records} records")
+    #         imported += len(batch)
+    #         print(f"Elasticsearch: Imported {imported}/{total_records} records")
         
-        end_time = time.time()
-        duration = end_time - start_time
+    #     end_time = time.time()
+    #     duration = end_time - start_time
         
-        return {
-            "database": "Elasticsearch",
-            "total_records": total_records,
-            "duration_seconds": duration,
-            "records_per_second": total_records / duration if duration > 0 else 0
-        }
+    #     return {
+    #         "database": "Elasticsearch",
+    #         "total_records": total_records,
+    #         "duration_seconds": duration,
+    #         "records_per_second": total_records / duration if duration > 0 else 0
+    #     }
+    # except Exception as e:
+    #     print(f"Error importing to Elasticsearch: {str(e)}")
+    #     return {
+    #         "database": "Elasticsearch",
+    #         "error": str(e)
+    #     }
+
+    # Elasticsearch queries
+    try:
+        es = Elasticsearch(["http://elasticsearch:9200"])
+        
+        # Check connection and index existence
+        if not es.indices.exists(index="logs"):
+            print("Elasticsearch index 'logs' does not exist. Creating it...")
+            es.indices.create(index="logs")
+        
+        print("Running Elasticsearch queries...")
+        # Run different types of queries
+        for query_type in query_types:
+            times = []
+            
+            for _ in range(num_queries):
+                if query_type == "level_filter":
+                    level = random.choice(log_levels)
+                    start_time = time.time()
+                    try:
+                        es.search(index="logs", body={
+                            "query": {
+                                "term": {
+                                    "level": level
+                                }
+                            },
+                            "size": 0  # Just count, don't return documents
+                        })
+                        times.append(time.time() - start_time)
+                    except Exception as e:
+                        print(f"Elasticsearch level_filter query error: {e}")
+                        
+                elif query_type == "time_range":
+                    hours = random.choice([1, 6, 24, 48])
+                    threshold = datetime.now().timestamp() - (hours * 3600)
+                    threshold_iso = datetime.fromtimestamp(threshold).isoformat()
+                    
+                    start_time = time.time()
+                    try:
+                        es.search(index="logs", body={
+                            "query": {
+                                "range": {
+                                    "timestamp": {
+                                        "gt": threshold_iso
+                                    }
+                                }
+                            },
+                            "size": 0
+                        })
+                        times.append(time.time() - start_time)
+                    except Exception as e:
+                        print(f"Elasticsearch time_range query error: {e}")
+                        
+                elif query_type == "complex_query":
+                    level = random.choice(log_levels)
+                    hours = random.choice([1, 6, 24, 48])
+                    threshold = datetime.now().timestamp() - (hours * 3600)
+                    threshold_iso = datetime.fromtimestamp(threshold).isoformat()
+                    
+                    start_time = time.time()
+                    try:
+                        es.search(index="logs", body={
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"level": level}},
+                                        {"range": {"timestamp": {"gt": threshold_iso}}},
+                                        {"match": {"message": "test"}}
+                                    ]
+                                }
+                            },
+                            "size": 0
+                        })
+                        times.append(time.time() - start_time)
+                    except Exception as e:
+                        print(f"Elasticsearch complex_query error: {e}")
+            
+            # Calculate average (only if we have times)
+            if times:
+                avg_time = sum(times) / len(times)
+                results.append({
+                    "database": "Elasticsearch",
+                    "query_type": query_type,
+                    "avg_duration_seconds": avg_time
+                })
+                print(f"Elasticsearch {query_type} average time: {avg_time:.6f}s")
+            else:
+                print(f"No successful Elasticsearch queries for {query_type}")
+        
     except Exception as e:
-        print(f"Error importing to Elasticsearch: {str(e)}")
-        return {
+        print(f"Error running Elasticsearch queries: {str(e)}")
+        results.append({
             "database": "Elasticsearch",
             "error": str(e)
-        }
+        })
 
 def run_query_tests(num_queries=20):
     """Run query performance tests on all databases"""
