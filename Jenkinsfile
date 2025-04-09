@@ -1,5 +1,9 @@
 pipeline {
     agent any
+
+    parameters {
+        booleanParam(name: 'RUN_DB_COMPARISON', defaultValue: true, description: 'Run database comparison')
+    }
     
     environment {
         DOCKER_IMAGE = 'devops-task-app'
