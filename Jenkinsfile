@@ -359,38 +359,38 @@ pipeline {
 //             }
 //         }
 
-        // stage('Database Comparison') {
-        //     when {
-        //         expression { params.RUN_DB_COMPARISON == true }
-        //     }
-        //     steps {
-        //         sh '''
-        //             # Install required packages
-        //             . venv/bin/activate
-        //             pip install psycopg2-binary pymongo elasticsearch matplotlib numpy
+        stage('Database Comparison') {
+            when {
+                expression { params.RUN_DB_COMPARISON == true }
+            }
+            steps {
+                sh '''
+                    # Install required packages
+                    . venv/bin/activate
+                    pip install psycopg2-binary pymongo elasticsearch matplotlib numpy
                     
-        //             # Ensure logs and reports directories exist
-        //             mkdir -p logs reports
-        //             chmod 777 logs reports
+                    # Ensure logs and reports directories exist
+                    mkdir -p logs reports
+                    chmod 777 logs reports
                     
-        //             # Generate test data
-        //             python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
+                    # Generate test data
+                    python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
                     
-        //             # Run database comparison
-        //             python scripts/import_logs.py --file logs/test_logs.json --queries 10
+                    # Run database comparison
+                    python scripts/import_logs.py --file logs/test_logs.json --queries 10
                     
-        //             # Create visualization
-        //             python scripts/visualize_results.py --results performance_results.json --output reports
+                    # Create visualization
+                    python scripts/visualize_results.py --results performance_results.json --output reports
                     
-        //             echo "Database comparison completed!"
-        //             echo "Check reports directory for visualization and results."
-        //         '''
+                    echo "Database comparison completed!"
+                    echo "Check reports directory for visualization and results."
+                '''
                 
-        //         // Archive results as artifacts
-        //         archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
-        //         archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
-        //     }
-        // }
+                // Archive results as artifacts
+                archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+            }
+        }
 
         // stage('Database Comparison') {
         //     steps {
@@ -460,46 +460,46 @@ pipeline {
         //     }
         // }
 
-        stage('Database Comparison') {
-            steps {
-                sh '''
-                    # Activate virtual environment
-                    . venv/bin/activate
+        // stage('Database Comparison') {
+        //     steps {
+        //         sh '''
+        //             # Activate virtual environment
+        //             . venv/bin/activate
                     
-                    # Uninstall current psycopg2 and install required dependencies
-                    pip uninstall -y psycopg2-binary
-                    pip install --no-binary :all: psycopg2-binary
-                    pip install pymongo elasticsearch matplotlib numpy
+        //             # Uninstall current psycopg2 and install required dependencies
+        //             pip uninstall -y psycopg2-binary
+        //             pip install --no-binary :all: psycopg2-binary
+        //             pip install pymongo elasticsearch matplotlib numpy
                     
-                    # Ensure directories exist
-                    mkdir -p logs reports
-                    chmod 777 logs reports
+        //             # Ensure directories exist
+        //             mkdir -p logs reports
+        //             chmod 777 logs reports
                     
-                    # Run database setup scripts
-                    ./scripts/db_scripts/setup_postgres.sh || echo "PostgreSQL setup failed but continuing"
-                    ./scripts/db_scripts/setup_mongodb.sh || echo "MongoDB setup failed but continuing" 
-                    ./scripts/db_scripts/setup_elasticsearch.sh || echo "Elasticsearch setup failed but continuing"
+        //             # Run database setup scripts
+        //             ./scripts/db_scripts/setup_postgres.sh || echo "PostgreSQL setup failed but continuing"
+        //             ./scripts/db_scripts/setup_mongodb.sh || echo "MongoDB setup failed but continuing" 
+        //             ./scripts/db_scripts/setup_elasticsearch.sh || echo "Elasticsearch setup failed but continuing"
                     
-                    # Generate test logs
-                    python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
+        //             # Generate test logs
+        //             python scripts/generate_test_logs.py --count 5000 --output logs/test_logs.json
                     
-                    # Run the database comparison
-                    python scripts/import_logs.py --file logs/test_logs.json --queries 10 || echo "Database comparison failed but continuing"
+        //             # Run the database comparison
+        //             python scripts/import_logs.py --file logs/test_logs.json --queries 10 || echo "Database comparison failed but continuing"
                     
-                    # Handle f-string error in visualization
-                    sed -i 's/query_rows += f"""/query_rows += """/' scripts/visualize_results.py
+        //             # Handle f-string error in visualization
+        //             sed -i 's/query_rows += f"""/query_rows += """/' scripts/visualize_results.py
                     
-                    # Generate visualization
-                    python scripts/visualize_results.py --results performance_results.json --output reports || echo "Visualization failed but continuing"
+        //             # Generate visualization
+        //             python scripts/visualize_results.py --results performance_results.json --output reports || echo "Visualization failed but continuing"
                     
-                    echo "Database comparison completed!"
-                '''
+        //             echo "Database comparison completed!"
+        //         '''
                 
-                // Archive the results
-                archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
-            }
-        }
+        //         // Archive the results
+        //         archiveArtifacts artifacts: 'performance_results.json', allowEmptyArchive: true
+        //         archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        //     }
+        // }
         
         stage('Generate Report') {
             steps {
