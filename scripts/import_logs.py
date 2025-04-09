@@ -91,7 +91,7 @@ def import_to_postgres(records, batch_size=100):
             "error": str(e)
         }
 
-# def import_to_mongodb(records, batch_size=100):
+def import_to_mongodb(records, batch_size=100):
     """Import log records to MongoDB"""
     try:
         # client = pymongo.MongoClient(
@@ -205,196 +205,6 @@ def import_to_postgres(records, batch_size=100):
             "database": "Elasticsearch",
             "error": str(e)
         }
-
-def import_to_mongodb(records, batch_size=100):
-    """Import log records to MongoDB with optimized settings"""
-    try:
-        # Connect to MongoDB with proper options
-        client = pymongo.MongoClient(
-            "mongodb://devops:devops_password@mongodb:27017/admin",
-            # Add connection pool settings
-            maxPoolSize=50,
-            # Add write concern settings
-            w=1,
-            # Add socket timeout
-            socketTimeoutMS=30000,
-            connectTimeoutMS=30000,
-            # Enable retryable writes for better performance
-            retryWrites=True
-        )
-        
-        db = client.logs
-        collection = db.app_logs
-        
-        # Create indexes before bulk insertion (this improves query performance)
-        print("Creating MongoDB indexes for better query performance...")
-        collection.create_index("level")
-        collection.create_index("timestamp")
-        collection.create_index([("level", pymongo.ASCENDING), ("timestamp", pymongo.DESCENDING)])
-        # Create a text index on message field
-        collection.create_index([("message", pymongo.TEXT)])
-        
-        start_time = time.time()
-        total_records = len(records)
-        
-        # Prepare the records - format timestamps correctly
-        prepared_records = []
-        for record in records:
-            # Make a copy to avoid modifying the original
-            doc = record.copy()
-            
-            # Convert timestamp strings to MongoDB-friendly format
-            if 'timestamp' in doc and isinstance(doc['timestamp'], str):
-                try:
-                    # Parse ISO format timestamp and store as Python datetime
-                    doc['timestamp'] = datetime.fromisoformat(doc['timestamp'])
-                except ValueError:
-                    # If parsing fails, use current time
-                    doc['timestamp'] = datetime.now()
-            
-            prepared_records.append(doc)
-        
-        # Insert in batches
-        for i in range(0, total_records, batch_size):
-            batch = prepared_records[i:i+batch_size]
-            collection.insert_many(batch)
-            print(f"MongoDB: Imported {min(i+batch_size, total_records)}/{total_records} records")
-        
-        end_time = time.time()
-        duration = end_time - start_time
-        
-        client.close()
-        
-        return {
-            "database": "MongoDB",
-            "total_records": total_records,
-            "duration_seconds": duration,
-            "records_per_second": total_records / duration if duration > 0 else 0
-        }
-    except Exception as e:
-        print(f"Error importing to MongoDB: {str(e)}")
-        return {
-            "database": "MongoDB",
-            "error": str(e)
-        }
-    
-def run_mongodb_queries(num_queries=20, query_types=None, log_levels=None):
-    """Run optimized query performance tests on MongoDB"""
-    if query_types is None:
-        query_types = ["level_filter", "time_range", "complex_query"]
-    
-    if log_levels is None:
-        log_levels = ["INFO", "WARNING", "ERROR"]
-    
-    results = []
-    
-    try:
-        # Connect to MongoDB with optimized settings
-        client = pymongo.MongoClient(
-            "mongodb://devops:devops_password@mongodb:27017/admin",
-            # Add connection pool settings
-            maxPoolSize=50,
-            # Add read preference for queries
-            readPreference='secondaryPreferred',
-            # Add socket timeout
-            socketTimeoutMS=30000,
-            connectTimeoutMS=30000
-        )
-        
-        db = client.logs
-        collection = db.app_logs
-        
-        # Enable profiling to see query performance
-        db.command({"profile": 2, "slowms": 0})
-        
-        print("Running MongoDB queries...")
-        # Run different types of queries
-        for query_type in query_types:
-            times = []
-            
-            for _ in range(num_queries):
-                if query_type == "level_filter":
-                    level = random.choice(log_levels)
-                    # Use explain to force query plan compilation before timing
-                    collection.find({"level": level}).explain()
-                    
-                    # Now time the actual query
-                    start_time = time.time()
-                    # Explicitly use count_documents for accurate counting
-                    collection.count_documents({"level": level})
-                    times.append(time.time() - start_time)
-                    
-                elif query_type == "time_range":
-                    hours = random.choice([1, 6, 24, 48])
-                    threshold = datetime.now() - timedelta(hours=hours)
-                    
-                    # Use proper datetime objects instead of string comparisons
-                    start_time = time.time()
-                    collection.count_documents({"timestamp": {"$gt": threshold}})
-                    times.append(time.time() - start_time)
-                    
-                elif query_type == "complex_query":
-                    level = random.choice(log_levels)
-                    hours = random.choice([1, 6, 24, 48])
-                    threshold = datetime.now() - timedelta(hours=hours)
-                    
-                    # Use more efficient query structure
-                    start_time = time.time()
-                    
-                    # Using $text search instead of regex when possible
-                    if collection.index_information().get('message_text'):
-                        # If we have a text index
-                        collection.count_documents({
-                            "level": level,
-                            "timestamp": {"$gt": threshold},
-                            "$text": {"$search": "test"}
-                        })
-                    else:
-                        # Fallback to regex
-                        collection.count_documents({
-                            "level": level,
-                            "timestamp": {"$gt": threshold},
-                            "message": {"$regex": "test", "$options": "i"}
-                        })
-                    times.append(time.time() - start_time)
-            
-            # Calculate average
-            if times:
-                avg_time = sum(times) / len(times)
-                results.append({
-                    "database": "MongoDB",
-                    "query_type": query_type,
-                    "avg_duration_seconds": avg_time
-                })
-                print(f"MongoDB {query_type} average time: {avg_time:.6f}s")
-            else:
-                print(f"No successful MongoDB queries for {query_type}")
-                results.append({
-                    "database": "MongoDB",
-                    "query_type": query_type,
-                    "error": "No successful queries"
-                })
-        
-        # Disable profiling when done
-        db.command({"profile": 0})
-        
-        # Check for slow queries in profiling collection
-        slow_queries = list(db.system.profile.find({}).sort("millis", -1).limit(5))
-        if slow_queries:
-            print("\nTop 5 slowest MongoDB operations:")
-            for idx, query in enumerate(slow_queries, 1):
-                print(f"{idx}. {query['op']} - {query.get('millis', 0)}ms - Query: {query.get('query', {})}")
-        
-        client.close()
-    except Exception as e:
-        print(f"Error running MongoDB queries: {str(e)}")
-        results.append({
-            "database": "MongoDB",
-            "error": str(e)
-        })
-    
-    return results
-    
 
 def import_to_elasticsearch(records, batch_size=100):
     """Import log records to Elasticsearch"""
@@ -922,238 +732,6 @@ def run_elasticsearch_queries(num_queries=20, query_types=None, log_levels=None)
 #                     print(f"    {db}: {avg_time:.6f}s")
 
 
-# def run_query_tests(num_queries=20):
-#     """Run query performance tests on all databases"""
-#     results = []
-    
-#     # Define test queries
-#     query_types = [
-#         "level_filter",
-#         "time_range",
-#         "complex_query"
-#     ]
-    
-#     # Prepare test data
-#     log_levels = ["INFO", "WARNING", "ERROR"]
-    
-#     # PostgreSQL queries
-#     try:
-#         conn = psycopg2.connect(
-#             host="postgres-db",  # Use the service name from docker-compose
-#             database="taskdb",
-#             user="devops",
-#             password="devops_password"
-#         )
-#         cursor = conn.cursor()
-        
-#         print("Running PostgreSQL queries...")
-#         # Run different types of queries
-#         for query_type in query_types:
-#             times = []
-            
-#             for _ in range(num_queries):
-#                 if query_type == "level_filter":
-#                     level = random.choice(log_levels)
-#                     start_time = time.time()
-#                     cursor.execute("SELECT COUNT(*) FROM logs WHERE level = %s", (level,))
-#                     cursor.fetchone()
-#                     times.append(time.time() - start_time)
-                    
-#                 elif query_type == "time_range":
-#                     hours = random.choice([1, 6, 24, 48])
-#                     start_time = time.time()
-#                     cursor.execute(
-#                         "SELECT COUNT(*) FROM logs WHERE timestamp > NOW() - INTERVAL '%s hours'", 
-#                         (hours,)
-#                     )
-#                     cursor.fetchone()
-#                     times.append(time.time() - start_time)
-                    
-#                 elif query_type == "complex_query":
-#                     level = random.choice(log_levels)
-#                     hours = random.choice([1, 6, 24, 48])
-#                     message_pattern = "%test%"
-                    
-#                     start_time = time.time()
-#                     cursor.execute(
-#                         """
-#                         SELECT COUNT(*) FROM logs 
-#                         WHERE level = %s 
-#                         AND timestamp > NOW() - INTERVAL '%s hours'
-#                         AND message LIKE %s
-#                         """,
-#                         (level, hours, message_pattern)
-#                     )
-#                     cursor.fetchone()
-#                     times.append(time.time() - start_time)
-            
-#             # Calculate average
-#             avg_time = sum(times) / len(times) if times else 0
-#             results.append({
-#                 "database": "PostgreSQL",
-#                 "query_type": query_type,
-#                 "avg_duration_seconds": avg_time
-#             })
-#             print(f"PostgreSQL {query_type} average time: {avg_time:.6f}s")
-        
-#         cursor.close()
-#         conn.close()
-#     except Exception as e:
-#         print(f"Error running PostgreSQL queries: {str(e)}")
-#         results.append({
-#             "database": "PostgreSQL",
-#             "error": str(e)
-#         })
-    
-#     # MongoDB queries
-#     try:
-#         client = pymongo.MongoClient(
-#             "mongodb://devops:devops_password@mongodb:27017/admin"  # Use the service name
-#         )
-#         db = client.logs
-#         collection = db.app_logs
-        
-#         print("Running MongoDB queries...")
-#         # Run different types of queries
-#         for query_type in query_types:
-#             times = []
-            
-#             for _ in range(num_queries):
-#                 if query_type == "level_filter":
-#                     level = random.choice(log_levels)
-#                     start_time = time.time()
-#                     collection.count_documents({"level": level})
-#                     times.append(time.time() - start_time)
-                    
-#                 elif query_type == "time_range":
-#                     hours = random.choice([1, 6, 24, 48])
-#                     threshold = datetime.now().timestamp() - (hours * 3600)
-#                     threshold_iso = datetime.fromtimestamp(threshold).isoformat()
-                    
-#                     start_time = time.time()
-#                     collection.count_documents({"timestamp": {"$gt": threshold_iso}})
-#                     times.append(time.time() - start_time)
-                    
-#                 elif query_type == "complex_query":
-#                     level = random.choice(log_levels)
-#                     hours = random.choice([1, 6, 24, 48])
-#                     threshold = datetime.now().timestamp() - (hours * 3600)
-#                     threshold_iso = datetime.fromtimestamp(threshold).isoformat()
-                    
-#                     start_time = time.time()
-#                     collection.count_documents({
-#                         "level": level,
-#                         "timestamp": {"$gt": threshold_iso},
-#                         "message": {"$regex": "test"}
-#                     })
-#                     times.append(time.time() - start_time)
-            
-#             # Calculate average
-#             avg_time = sum(times) / len(times) if times else 0
-#             results.append({
-#                 "database": "MongoDB",
-#                 "query_type": query_type,
-#                 "avg_duration_seconds": avg_time
-#             })
-#             print(f"MongoDB {query_type} average time: {avg_time:.6f}s")
-        
-#         client.close()
-#     except Exception as e:
-#         print(f"Error running MongoDB queries: {str(e)}")
-#         results.append({
-#             "database": "MongoDB",
-#             "error": str(e)
-#         })
-    
-#     # Run Elasticsearch queries using the dedicated function
-#     es_results = run_elasticsearch_queries(num_queries, query_types, log_levels)
-#     results.extend(es_results)
-    
-#     return results
-
-# def main():
-    parser = argparse.ArgumentParser(description='Import logs to different databases and run performance tests')
-    parser.add_argument('--file', required=True, help='Path to JSON log file')
-    parser.add_argument('--queries', type=int, default=20, help='Number of queries to run for testing')
-    parser.add_argument('--skip-import', action='store_true', help='Skip import phase, run only queries')
-    args = parser.parse_args()
-    
-    all_results = {}
-    
-    if not args.skip_import:
-        # Read log records
-        print(f"Reading log records from {args.file}...")
-        records = read_log_file(args.file)
-        if not records:
-            print("No records found. Exiting.")
-            return
-        print(f"Read {len(records)} log records.")
-        
-        # Import to PostgreSQL
-        print("\nImporting to PostgreSQL...")
-        pg_results = import_to_postgres(records)
-        print(f"PostgreSQL import completed in {pg_results.get('duration_seconds', 'N/A')} seconds")
-        
-        # Import to MongoDB
-        print("\nImporting to MongoDB...")
-        mongo_results = import_to_mongodb(records)
-        print(f"MongoDB import completed in {mongo_results.get('duration_seconds', 'N/A')} seconds")
-        
-        # Import to Elasticsearch
-        print("\nImporting to Elasticsearch...")
-        es_results = import_to_elasticsearch(records)
-        print(f"Elasticsearch import completed in {es_results.get('duration_seconds', 'N/A')} seconds")
-        
-        all_results["import_performance"] = [pg_results, mongo_results, es_results]
-    else:
-        print("Skipping import phase as requested.")
-    
-    # Run query tests
-    print("\nRunning query performance tests...")
-    query_results = run_query_tests(args.queries)
-    all_results["query_performance"] = query_results
-    
-    # Save results to file
-    output_file = "performance_results.json"
-    with open(output_file, 'w') as f:
-        json.dump(all_results, f, indent=2)
-    
-    print(f"\nResults saved to {output_file}")
-    
-    # Print summary
-    print("\nPerformance Summary:")
-    print("====================")
-    
-    if "import_performance" in all_results:
-        print("\nImport Performance:")
-        for result in all_results["import_performance"]:
-            db = result.get("database")
-            duration = result.get("duration_seconds", "N/A")
-            rps = result.get("records_per_second", "N/A")
-            
-            # Handle the case where duration or rps might be strings
-            if isinstance(duration, str) or isinstance(rps, str):
-                print(f"  {db}: {duration}s, {rps} records/s")
-            else:
-                print(f"  {db}: {duration:.2f}s, {rps:.2f} records/s")
-    
-    print("\nQuery Performance (Average in seconds):")
-    for query_type in ["level_filter", "time_range", "complex_query"]:
-        print(f"\n  {query_type}:")
-        for db in ["PostgreSQL", "MongoDB", "Elasticsearch"]:
-            results = [r for r in query_results if r.get("database") == db and r.get("query_type") == query_type]
-            if results:
-                if "error" in results[0]:
-                    print(f"    {db}: ERROR - {results[0].get('error')}")
-                else:
-                    avg_time = results[0].get("avg_duration_seconds", "N/A")
-                    if isinstance(avg_time, str):
-                        print(f"    {db}: {avg_time}s")
-                    else:
-                        print(f"    {db}: {avg_time:.6f}s")
-            else:
-                print(f"    {db}: No results")
-
 def run_query_tests(num_queries=20):
     """Run query performance tests on all databases"""
     results = []
@@ -1237,9 +815,65 @@ def run_query_tests(num_queries=20):
             "error": str(e)
         })
     
-    # Run MongoDB queries using the dedicated function
-    mongodb_results = run_mongodb_queries(num_queries, query_types, log_levels)
-    results.extend(mongodb_results)
+    # MongoDB queries
+    try:
+        client = pymongo.MongoClient(
+            "mongodb://devops:devops_password@mongodb:27017/admin"  # Use the service name
+        )
+        db = client.logs
+        collection = db.app_logs
+        
+        print("Running MongoDB queries...")
+        # Run different types of queries
+        for query_type in query_types:
+            times = []
+            
+            for _ in range(num_queries):
+                if query_type == "level_filter":
+                    level = random.choice(log_levels)
+                    start_time = time.time()
+                    collection.count_documents({"level": level})
+                    times.append(time.time() - start_time)
+                    
+                elif query_type == "time_range":
+                    hours = random.choice([1, 6, 24, 48])
+                    threshold = datetime.now().timestamp() - (hours * 3600)
+                    threshold_iso = datetime.fromtimestamp(threshold).isoformat()
+                    
+                    start_time = time.time()
+                    collection.count_documents({"timestamp": {"$gt": threshold_iso}})
+                    times.append(time.time() - start_time)
+                    
+                elif query_type == "complex_query":
+                    level = random.choice(log_levels)
+                    hours = random.choice([1, 6, 24, 48])
+                    threshold = datetime.now().timestamp() - (hours * 3600)
+                    threshold_iso = datetime.fromtimestamp(threshold).isoformat()
+                    
+                    start_time = time.time()
+                    collection.count_documents({
+                        "level": level,
+                        "timestamp": {"$gt": threshold_iso},
+                        "message": {"$regex": "test"}
+                    })
+                    times.append(time.time() - start_time)
+            
+            # Calculate average
+            avg_time = sum(times) / len(times) if times else 0
+            results.append({
+                "database": "MongoDB",
+                "query_type": query_type,
+                "avg_duration_seconds": avg_time
+            })
+            print(f"MongoDB {query_type} average time: {avg_time:.6f}s")
+        
+        client.close()
+    except Exception as e:
+        print(f"Error running MongoDB queries: {str(e)}")
+        results.append({
+            "database": "MongoDB",
+            "error": str(e)
+        })
     
     # Run Elasticsearch queries using the dedicated function
     es_results = run_elasticsearch_queries(num_queries, query_types, log_levels)
@@ -1252,9 +886,6 @@ def main():
     parser.add_argument('--file', required=True, help='Path to JSON log file')
     parser.add_argument('--queries', type=int, default=20, help='Number of queries to run for testing')
     parser.add_argument('--skip-import', action='store_true', help='Skip import phase, run only queries')
-    parser.add_argument('--skip-postgres', action='store_true', help='Skip PostgreSQL tests')
-    parser.add_argument('--skip-mongodb', action='store_true', help='Skip MongoDB tests')
-    parser.add_argument('--skip-elasticsearch', action='store_true', help='Skip Elasticsearch tests')
     args = parser.parse_args()
     
     all_results = {}
@@ -1268,30 +899,22 @@ def main():
             return
         print(f"Read {len(records)} log records.")
         
-        import_results = []
-        
         # Import to PostgreSQL
-        if not args.skip_postgres:
-            print("\nImporting to PostgreSQL...")
-            pg_results = import_to_postgres(records)
-            print(f"PostgreSQL import completed in {pg_results.get('duration_seconds', 'N/A')} seconds")
-            import_results.append(pg_results)
+        print("\nImporting to PostgreSQL...")
+        pg_results = import_to_postgres(records)
+        print(f"PostgreSQL import completed in {pg_results.get('duration_seconds', 'N/A')} seconds")
         
         # Import to MongoDB
-        if not args.skip_mongodb:
-            print("\nImporting to MongoDB...")
-            mongo_results = import_to_mongodb(records)
-            print(f"MongoDB import completed in {mongo_results.get('duration_seconds', 'N/A')} seconds")
-            import_results.append(mongo_results)
+        print("\nImporting to MongoDB...")
+        mongo_results = import_to_mongodb(records)
+        print(f"MongoDB import completed in {mongo_results.get('duration_seconds', 'N/A')} seconds")
         
         # Import to Elasticsearch
-        if not args.skip_elasticsearch:
-            print("\nImporting to Elasticsearch...")
-            es_results = import_to_elasticsearch(records)
-            print(f"Elasticsearch import completed in {es_results.get('duration_seconds', 'N/A')} seconds")
-            import_results.append(es_results)
+        print("\nImporting to Elasticsearch...")
+        es_results = import_to_elasticsearch(records)
+        print(f"Elasticsearch import completed in {es_results.get('duration_seconds', 'N/A')} seconds")
         
-        all_results["import_performance"] = import_results
+        all_results["import_performance"] = [pg_results, mongo_results, es_results]
     else:
         print("Skipping import phase as requested.")
     
