@@ -26,6 +26,7 @@ def generate_log_record(timestamp=None):
     ]
     
     # Create random values
+    #
     level = random.choices(levels, weights=[0.7, 0.2, 0.1])[0]
     module = random.choice(modules)
     function = random.choice(functions)
