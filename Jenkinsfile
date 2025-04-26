@@ -456,7 +456,8 @@ EOF
                 echo "Failure report created."
             '''
             
-            archiveArtifacts artifacts: 'reports/**', altlowEmptyArchive: true
+            // archiveArtifacts artifacts: 'reports/**', altlowEmptyArchive: true
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
         }
     }
 }
